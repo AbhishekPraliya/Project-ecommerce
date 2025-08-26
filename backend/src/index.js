@@ -53,7 +53,7 @@ if(process.env.NODE_ENV==="production"){
 }
 
 
-app.listn(PORT || 5001,()=>{
+app.listen(PORT || 5001,()=>{
     console.log("Hello Abhishek, Server is running on port:"+PORT);
     connectDB();
 })
