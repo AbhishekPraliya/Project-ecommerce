@@ -1,115 +1,274 @@
-import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
-import bcrypt from "bcrypt"
-import cloudinary from "../lib/cloudinary.js";
+import Seller from "../models/seller.model.js";
+import Owner from "../models/owner.model.js";
+import EmailRole from "../models/emailRole.model.js";
+import { generateToken } from "../lib/utils.js";
+// import { verifyAuth0Token } from "../lib/auth0Verify.js";
 
-const signup = async (req,res)=>{
-    const {fullName,email,password} = req.body
-    if(!fullName || !email || !password){
-        return res.status(400).json({message:"All fields are require"});
-    }
-    try{
-        if(password.length<6){
-            return res.status(400).json({message:"Password must be at least 6 chatacters"});
+// USER LOGIN
+export const loginUser = async (req, res) => {
+    const { email } = req.body;
+    try {
+        if(!email) {
+            return res.status(400).json({ message: "Email is required" });
         }
+        // console.log("User logged in:", email);
+        let user = await User.findOne({ email });
+        if (!user) {
+            user = new User(req.body);
+            await user.save();
+        }
+        // console.log("User logged in:", user.email);
+
+        const userData = {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            phoneNumber: user.phoneNumber || null,
+            dateOfBirth: user.dateOfBirth || null,
+            gender: user.gender || null,
+            role: user.role || "user"
+        };
+        generateToken(userData, res);
+
+        res.status(200).json(userData);
+    } catch (err) {
+        console.error("User login failed", err);
+        res.status(500).json({ message: "User login failed" });
+    }
+};
+
+// BUSINESS LOGIN
+export const loginBusinessAccount = async (req, res) => {
+    // console.log("loginBusinessAccount", req.body.token);
+    // const token = req.body.token; // The token received from Auth0
+    // const decoded = await verifyAuth0Token(token);
+    // console.log("Decoded token:", JSON.stringify(decoded));
+    try {
+        const { email } = req.body;
+        const data = await EmailRole.findOne();
+        const emails = data?.emails || [];
+
+        const matchedEntry = emails.find(e => e.email === email);
+
+        let userData ;
+        if (matchedEntry) {
+            userData = {
+                email: matchedEntry.email,
+                role: matchedEntry.role,
+            }
+        }
+        let OWNER_EMAIL= process.env.OWNER_EMAIL || "";
         
-        const user = await User.findOne({email});
-        if(user) return res.send(400).json({message:"Email already exists"});
-        
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password,salt);
-
-        const newUser = new User({
-            fullName,
-            email,
-            password: hashedPassword
-        })
-        if(newUser){
-            generateToken(newUser._id,res)
-            await newUser.save();
-
-            res.status(201).json({
-                _id:newUser._id,
-                fullName:newUser.fullName,
-                email:newUser.email,
-                profilePic:newUser.profilePic,
-            })
-        }else{
-            res.status(400).json({message:"Invalid user data"});
+        if (!userData && email !== OWNER_EMAIL) {
+            // console.log("Unauthorized email:", email);
+            return res.status(403).json({ message: "Unauthorized email" });
         }
 
-    }catch(error){
-        console.log("error in signup controller",error.message);
-        res.status(500).json({message:"Internal Server Error"});
-    }
-}
+        if (email === OWNER_EMAIL || userData.role === "owner") {
+            let owner = await Owner.findOne({ email });
+            if (!owner) {
+                owner = new Owner(req.body);
+                await owner.save();
+            }
 
-const login = async (req,res)=>{
-    const {email,password}=req.body;
-    if(!email || !password){
-        return res.status(400).json({message:"All fields are require"});
-    }
-    try{
-        const user = await User.findOne({email})
+            const userData = {
+                _id: owner._id,
+                name: owner.name,
+                email: owner.email,
+                phoneNumber: owner.phoneNumber || null,
+                gender: owner.gender || null,
+                dateOfBirth: owner.dateOfBirth || null,
+                role: "owner"
+            };
+            generateToken(userData, res);
 
-        if(!user){
-            return res.status(400).json({message:"Invalid credentials"})
-        }
-        const isPasswordCorrect = await bcrypt.compare(password,user.password);
-        if(!isPasswordCorrect){
-            return res.status(400).json({message:"Invalid credentials"})
-        }
-        
-        generateToken(user._id,res)
-
-        res.status(200).json({
-            _id:user._id,
-            fullName:user.fullName,
-            email:user.email,
-            profilePic:user.profilePic,
-        });
-    }catch(error){
-        console.log("Error in login controller",error.message);
-        res.status(500).json({message:"Internal server error"})
-    }
-}
-
-const logout = async (req,res)=>{
-    try{
-        res.cookie("jwt","",{maxAge:0})
-        res.status(200).json({message:"Logged out successfully"});
-    }catch(error){
-        console.log("Error in logout controller",error.message);
-        res.status(500).json({message:"Internal Server Error"});
-    }
-}
-
-const updateProfile = async (req,res)=>{
-    try{
-        const {profilePic}=req.body;
-        const userId=req.user._id;
-
-        if(!profilePic){
-            return res.status(400).json({message:"Profile pic is require"});
+            return res.status(200).json(userData);
         }
 
-        const uploadResponse = await cloudinary.uploader.upload(profilePic);
-        const updatedUser = await User.findByIdAndUpdate(userId,{profilePic:uploadResponse.secure_url},{new:true});
+        if (userData.role === "seller") {
+            // console.log("Seller login attempt for email:", email);
+            let seller = await Seller.findOne({ email });
+            if (!seller) {
+                seller = new Seller(req.body);
+                await seller.save();
+            }
 
-        res.status(200).json(updatedUser)
-    }catch(error){
-        console.log("error in updated profile",error);
-        res.status(500).json({message:"Internal server error"});
+            const userData = {
+                _id: seller._id,
+                name: seller.name,
+                email: seller.email,
+                phoneNumber: seller.phoneNumber || null,
+                gender: seller.gender || null,
+                dateOfBirth: seller.dateOfBirth || null,
+                business:seller.business || null,
+                role: "seller"
+            };
+            generateToken(userData, res);
+
+            return res.status(200).json(userData);
+        }
+
+        return res.status(403).json({ message: "Only allowed persons can login with business account" });
+    } catch (err) {
+        console.error("Business login failed", err);
+        res.status(500).json({ message: "Business login failed" });
     }
-}
+};
 
-const checkAuth = async (req,res)=>{
-    try{
-        res.status(200).json(req.user);
-    }catch(error){
-        console.log("error in checkAuth controller:",error.message);
-        res.status(500).json({message:"Internal Server Error"});
+// AUTH CHECKS
+export const checkAuthUser = async (req, res) => {
+    if (req.userRole !== "user") {
+        return res.status(403).json({ message: "Access denied for non-user" });
     }
-}
 
-export {signup,login,logout,updateProfile,checkAuth};
+    res.json(req.user);
+};
+
+export const checkAuthBusiness = async (req, res) => {
+    if (req.userRole !== "owner" && req.userRole !== "seller") {
+        return res.status(403).json({ message: "Access denied for user role" });
+    }
+
+    res.json(req.user);
+};
+
+// LOGOUT
+export const logoutUser = (req, res) => {
+    res.clearCookie("jwt");
+    res.json({ message: "User logged out" });
+};
+
+export const logoutBusiness = (req, res) => {
+    res.clearCookie("jwt");
+    res.json({ message: "Business account logged out" });
+};
+
+// UPDATE AUTH PROFILE
+export const updateAuth = async (req, res) => {
+    const { phoneNumber, gender, dateOfBirth } = req.body;
+    // console.log(gender,dateOfBirth);
+
+    try {
+        let updatedUser;
+
+        if (req.userRole === "user") {
+            updatedUser = await User.findByIdAndUpdate(
+                req.user._id,
+                { phoneNumber, gender, dateOfBirth },
+                { new: true }
+            );
+
+            const userData = {
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                phoneNumber: updatedUser.phoneNumber,
+                gender: updatedUser.gender,
+                dateOfBirth: updatedUser.dateOfBirth,
+                role: "user"
+            };
+            generateToken(userData, res);
+            return res.json(userData);
+        }
+
+        if (req.userRole === "seller") {
+            updatedUser = await Seller.findByIdAndUpdate(
+                req.user._id,
+                { phoneNumber, gender, dateOfBirth },
+                { new: true }
+            );
+            console.log("updatedUser=", updatedUser);
+
+            const userData = {
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                phoneNumber: updatedUser.phoneNumber || null,
+                gender: updatedUser.gender || null,
+                dateOfBirth: updatedUser.dateOfBirth || null,
+                business:updatedUser.business || null,
+                role: "seller"
+            };
+            generateToken(userData, res);
+            return res.json(userData);
+        }
+
+        if (req.userRole === "owner") {
+            updatedUser = await Owner.findByIdAndUpdate(
+                req.user._id,
+                { phoneNumber, gender, dateOfBirth },
+                { new: true }
+            );
+
+            const userData = {
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                phoneNumber: updatedUser.phoneNumber || null,
+                gender: updatedUser.gender || null,
+                dateOfBirth: updatedUser.dateOfBirth || null,
+                role: "owner"
+            };
+            generateToken(userData, res);
+            return res.json(userData);
+        }
+
+        return res.status(403).json({ message: "Unauthorized role" });
+    } catch (err) {
+        console.error("Failed to update authenticated user:", err);
+        res.status(500).json({ message: "Failed to update profile" });
+    }
+};
+
+////// address ///////////
+
+const getModel = (role) => {
+    if (role === "seller") return Seller;
+    if (role === "owner") return Owner;
+    return User;
+};
+
+export const getAddress = async (req, res) => {
+    const Model = getModel(req.userRole);
+    const user = await Model.findById(req.user._id);
+    console.log("getAddress",user.addresses);
+    res.json({ addresses: user.addresses || [] });
+};
+
+export const createAddress = async (req, res) => {
+    const Model = getModel(req.userRole);
+    const user = await Model.findById(req.user._id);
+    user.addresses.push(req.body);
+    await user.save();
+    const newAddress = user.addresses[user.addresses.length - 1];
+    console.log("createAddress",newAddress);
+    res.json({ address: newAddress });
+};
+
+export const editAddress = async (req, res) => {
+    const { index, updatedAddress } = req.body;
+    const Model = getModel(req.userRole);
+    const user = await Model.findById(req.user._id);
+    if (index < 0 || index >= user.addresses.length) {
+        return res.status(400).json({ error: "Invalid address index" });
+    }
+    user.addresses[index] = updatedAddress;
+    await user.save();
+    console.log("editAddress");
+    res.json({ address: updatedAddress });
+};
+
+export const deleteAddress = async (req, res) => {
+    const index = parseInt(req.query.index);
+    const Model = getModel(req.userRole);
+    const user = await Model.findById(req.user._id);
+    if (index < 0 || index >= user.addresses.length) {
+        return res.status(400).json({ error: "Invalid address index" });
+    }
+    user.addresses.splice(index, 1);
+    await user.save();
+    console.log("deleteAddress");
+    res.json({ message: "Address deleted" });
+};
+

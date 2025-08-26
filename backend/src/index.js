@@ -1,7 +1,15 @@
 import express from "express"
-import authRoutes from "./routes/auth.route.js"
-import messageRoutes from "./routes/message.route.js"
-import postRoutes from "./routes/post.routes.js"
+
+import authRoutes from "./src/routes/auth.route.js"
+import userRoutes from "./src/routes/user.route.js"
+import sellerRoutes from "./src/routes/seller.route.js"
+import ownerRoutes from "./src/routes/owner.route.js"
+import emailRoleRoutes from './src/routes/emailRole.route.js'
+import productRoutes from "./src/routes/product.route.js"
+import webRoutes from "./src/routes/web.route.js"
+import contactUsRoutes from './src/routes/contactUs.route.js';
+import categoryRoutes from './src/routes/category.route.js'
+
 import dotenv from "dotenv"
 import {connectDB} from "./lib/db.js"
 import cookieParser from "cookie-parser"
@@ -24,8 +32,15 @@ app.use(cors({
 }))
 
 app.use("/api/auth", authRoutes )
-app.use("/api/messages", messageRoutes )
-app.use("/api/posts", postRoutes);
+app.use("/api/owner", ownerRoutes )
+app.use("/api/user", userRoutes )
+app.use("/api/seller", sellerRoutes )
+
+app.use("/api/product", productRoutes )
+app.use("/api/web", webRoutes )
+app.use("/api/email-roles", emailRoleRoutes )
+app.use('/api/contact-us', contactUsRoutes);
+app.use('/api/category', categoryRoutes);
 
 if(process.env.NODE_ENV==="production"){
     app.use(express.static(path.join(__dirname, "../frontend/dist")));

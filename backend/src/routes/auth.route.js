@@ -1,24 +1,41 @@
 import express from "express";
 import {
-    signup,
-    login,
-    logout,
-    updateProfile,
-    checkAuth,
+    loginUser,
+    loginBusinessAccount,
+    checkAuthUser,
+    checkAuthBusiness,
+    logoutUser,
+    logoutBusiness,
+    updateAuth,
+    getAddress,
+    createAddress,
+    editAddress,
+    deleteAddress,
 } from "../controllers/auth.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/signup",signup)
+// Login Routes
+router.post("/login/user", loginUser);
+router.post("/login/business-account", loginBusinessAccount);
 
-router.post("/login",login)
+// Auth Check Routes
+router.get("/check/user", protectRoute, checkAuthUser);
+router.get("/check/business-account", protectRoute, checkAuthBusiness);
 
-router.post("/logout",logout)
+// Logout Routes
+router.post("/logout/user", protectRoute, logoutUser);
+router.post("/logout/business-account", protectRoute, logoutBusiness);
 
-router.put("/update-profile",protectRoute,updateProfile);
+// Update routes
+router.put("/update-auth", protectRoute, updateAuth);
 
-router.get("/check",protectRoute,checkAuth);
 
+// addresses routes
+router.get("/get/address", protectRoute, getAddress);
+router.post("/create/address", protectRoute, createAddress);
+router.put("/edit/address", protectRoute, editAddress);
+router.delete("/delete/address", protectRoute, deleteAddress);
 
-export default router
+export default router;
